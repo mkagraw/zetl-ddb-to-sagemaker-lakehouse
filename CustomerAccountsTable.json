@@ -1,0 +1,12 @@
+{
+    "TableName": "CustomerAccounts",
+    "AttributeDefinitions": [
+        { "AttributeName": "CustomerID", "AttributeType": "S" },
+        { "AttributeName": "AccountNumber", "AttributeType": "S" }
+    ],
+    "KeySchema": [
+        { "AttributeName": "CustomerID", "KeyType": "HASH" },
+        { "AttributeName": "AccountNumber", "KeyType": "RANGE" }
+    ],
+    "BillingMode": "PAY_PER_REQUEST"
+}

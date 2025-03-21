@@ -1,0 +1,829 @@
+{
+    "CustomerAccounts": [
+        {
+            "PutRequest": {
+                "Item": {
+                    "CustomerID": {
+                        "S": "CUST0026"
+                    },
+                    "AccountNumber": {
+                        "S": "ACC839001"
+                    },
+                    "State": {
+                        "S": "WA"
+                    },
+                    "ZipCode": {
+                        "S": "98101"
+                    },
+                    "CreditLimit": {
+                        "N": "10140"
+                    },
+                    "CurrentBalance": {
+                        "N": "8135.47"
+                    },
+                    "LastPaymentDate": {
+                        "S": "2024-12-17"
+                    },
+                    "AccountStatus": {
+                        "S": "Active"
+                    },
+                    "InterestRate": {
+                        "N": "3.15"
+                    }
+                }
+            }
+        },
+        {
+            "PutRequest": {
+                "Item": {
+                    "CustomerID": {
+                        "S": "CUST0027"
+                    },
+                    "AccountNumber": {
+                        "S": "ACC783208"
+                    },
+                    "State": {
+                        "S": "IL"
+                    },
+                    "ZipCode": {
+                        "S": "60601"
+                    },
+                    "CreditLimit": {
+                        "N": "42417"
+                    },
+                    "CurrentBalance": {
+                        "N": "24561.86"
+                    },
+                    "LastPaymentDate": {
+                        "S": "2024-12-30"
+                    },
+                    "AccountStatus": {
+                        "S": "Closed"
+                    },
+                    "InterestRate": {
+                        "N": "0.0"
+                    }
+                }
+            }
+        },
+        {
+            "PutRequest": {
+                "Item": {
+                    "CustomerID": {
+                        "S": "CUST0028"
+                    },
+                    "AccountNumber": {
+                        "S": "ACC427762"
+                    },
+                    "State": {
+                        "S": "CO"
+                    },
+                    "ZipCode": {
+                        "S": "80201"
+                    },
+                    "CreditLimit": {
+                        "N": "9386"
+                    },
+                    "CurrentBalance": {
+                        "N": "22894.29"
+                    },
+                    "LastPaymentDate": {
+                        "S": "2024-12-09"
+                    },
+                    "AccountStatus": {
+                        "S": "Past Due"
+                    },
+                    "InterestRate": {
+                        "N": "4.52"
+                    }
+                }
+            }
+        },
+        {
+            "PutRequest": {
+                "Item": {
+                    "CustomerID": {
+                        "S": "CUST0029"
+                    },
+                    "AccountNumber": {
+                        "S": "ACC832708"
+                    },
+                    "State": {
+                        "S": "IL"
+                    },
+                    "ZipCode": {
+                        "S": "60601"
+                    },
+                    "CreditLimit": {
+                        "N": "49386"
+                    },
+                    "CurrentBalance": {
+                        "N": "10006.23"
+                    },
+                    "LastPaymentDate": {
+                        "S": "2025-01-10"
+                    },
+                    "AccountStatus": {
+                        "S": "Closed"
+                    },
+                    "InterestRate": {
+                        "N": "0.0"
+                    }
+                }
+            }
+        },
+        {
+            "PutRequest": {
+                "Item": {
+                    "CustomerID": {
+                        "S": "CUST0030"
+                    },
+                    "AccountNumber": {
+                        "S": "ACC963899"
+                    },
+                    "State": {
+                        "S": "NC"
+                    },
+                    "ZipCode": {
+                        "S": "27513"
+                    },
+                    "CreditLimit": {
+                        "N": "38203"
+                    },
+                    "CurrentBalance": {
+                        "N": "35782.69"
+                    },
+                    "LastPaymentDate": {
+                        "S": "2025-02-06"
+                    },
+                    "AccountStatus": {
+                        "S": "Closed"
+                    },
+                    "InterestRate": {
+                        "N": "0.0"
+                    }
+                }
+            }
+        },
+        {
+            "PutRequest": {
+                "Item": {
+                    "CustomerID": {
+                        "S": "CUST0031"
+                    },
+                    "AccountNumber": {
+                        "S": "ACC919600"
+                    },
+                    "State": {
+                        "S": "CA"
+                    },
+                    "ZipCode": {
+                        "S": "94105"
+                    },
+                    "CreditLimit": {
+                        "N": "30196"
+                    },
+                    "CurrentBalance": {
+                        "N": "2463.05"
+                    },
+                    "LastPaymentDate": {
+                        "S": "2025-02-01"
+                    },
+                    "AccountStatus": {
+                        "S": "Active"
+                    },
+                    "InterestRate": {
+                        "N": "3.15"
+                    }
+                }
+            }
+        },
+        {
+            "PutRequest": {
+                "Item": {
+                    "CustomerID": {
+                        "S": "CUST0032"
+                    },
+                    "AccountNumber": {
+                        "S": "ACC577272"
+                    },
+                    "State": {
+                        "S": "AZ"
+                    },
+                    "ZipCode": {
+                        "S": "85001"
+                    },
+                    "CreditLimit": {
+                        "N": "42246"
+                    },
+                    "CurrentBalance": {
+                        "N": "23461.86"
+                    },
+                    "LastPaymentDate": {
+                        "S": "2025-02-01"
+                    },
+                    "AccountStatus": {
+                        "S": "Closed"
+                    },
+                    "InterestRate": {
+                        "N": "0.0"
+                    }
+                }
+            }
+        },
+        {
+            "PutRequest": {
+                "Item": {
+                    "CustomerID": {
+                        "S": "CUST0033"
+                    },
+                    "AccountNumber": {
+                        "S": "ACC655559"
+                    },
+                    "State": {
+                        "S": "FL"
+                    },
+                    "ZipCode": {
+                        "S": "33130"
+                    },
+                    "CreditLimit": {
+                        "N": "25938"
+                    },
+                    "CurrentBalance": {
+                        "N": "3038.71"
+                    },
+                    "LastPaymentDate": {
+                        "S": "2025-01-12"
+                    },
+                    "AccountStatus": {
+                        "S": "Closed"
+                    },
+                    "InterestRate": {
+                        "N": "0.0"
+                    }
+                }
+            }
+        },
+        {
+            "PutRequest": {
+                "Item": {
+                    "CustomerID": {
+                        "S": "CUST0034"
+                    },
+                    "AccountNumber": {
+                        "S": "ACC398730"
+                    },
+                    "State": {
+                        "S": "TX"
+                    },
+                    "ZipCode": {
+                        "S": "73301"
+                    },
+                    "CreditLimit": {
+                        "N": "48774"
+                    },
+                    "CurrentBalance": {
+                        "N": "33492.27"
+                    },
+                    "LastPaymentDate": {
+                        "S": "2025-01-06"
+                    },
+                    "AccountStatus": {
+                        "S": "Closed"
+                    },
+                    "InterestRate": {
+                        "N": "0.0"
+                    }
+                }
+            }
+        },
+        {
+            "PutRequest": {
+                "Item": {
+                    "CustomerID": {
+                        "S": "CUST0035"
+                    },
+                    "AccountNumber": {
+                        "S": "ACC511863"
+                    },
+                    "State": {
+                        "S": "AZ"
+                    },
+                    "ZipCode": {
+                        "S": "85001"
+                    },
+                    "CreditLimit": {
+                        "N": "39994"
+                    },
+                    "CurrentBalance": {
+                        "N": "38540.86"
+                    },
+                    "LastPaymentDate": {
+                        "S": "2025-02-05"
+                    },
+                    "AccountStatus": {
+                        "S": "Active"
+                    },
+                    "InterestRate": {
+                        "N": "3.15"
+                    }
+                }
+            }
+        },
+        {
+            "PutRequest": {
+                "Item": {
+                    "CustomerID": {
+                        "S": "CUST0036"
+                    },
+                    "AccountNumber": {
+                        "S": "ACC365439"
+                    },
+                    "State": {
+                        "S": "IL"
+                    },
+                    "ZipCode": {
+                        "S": "60601"
+                    },
+                    "CreditLimit": {
+                        "N": "15212"
+                    },
+                    "CurrentBalance": {
+                        "N": "36329.78"
+                    },
+                    "LastPaymentDate": {
+                        "S": "2025-01-03"
+                    },
+                    "AccountStatus": {
+                        "S": "Closed"
+                    },
+                    "InterestRate": {
+                        "N": "0.0"
+                    }
+                }
+            }
+        },
+        {
+            "PutRequest": {
+                "Item": {
+                    "CustomerID": {
+                        "S": "CUST0037"
+                    },
+                    "AccountNumber": {
+                        "S": "ACC575920"
+                    },
+                    "State": {
+                        "S": "NY"
+                    },
+                    "ZipCode": {
+                        "S": "10001"
+                    },
+                    "CreditLimit": {
+                        "N": "16883"
+                    },
+                    "CurrentBalance": {
+                        "N": "39069.6"
+                    },
+                    "LastPaymentDate": {
+                        "S": "2025-01-25"
+                    },
+                    "AccountStatus": {
+                        "S": "Past Due"
+                    },
+                    "InterestRate": {
+                        "N": "4.52"
+                    }
+                }
+            }
+        },
+        {
+            "PutRequest": {
+                "Item": {
+                    "CustomerID": {
+                        "S": "CUST0038"
+                    },
+                    "AccountNumber": {
+                        "S": "ACC289212"
+                    },
+                    "State": {
+                        "S": "IL"
+                    },
+                    "ZipCode": {
+                        "S": "60601"
+                    },
+                    "CreditLimit": {
+                        "N": "40330"
+                    },
+                    "CurrentBalance": {
+                        "N": "9182.5"
+                    },
+                    "LastPaymentDate": {
+                        "S": "2024-12-25"
+                    },
+                    "AccountStatus": {
+                        "S": "Past Due"
+                    },
+                    "InterestRate": {
+                        "N": "4.52"
+                    }
+                }
+            }
+        },
+        {
+            "PutRequest": {
+                "Item": {
+                    "CustomerID": {
+                        "S": "CUST0039"
+                    },
+                    "AccountNumber": {
+                        "S": "ACC877056"
+                    },
+                    "State": {
+                        "S": "NY"
+                    },
+                    "ZipCode": {
+                        "S": "10001"
+                    },
+                    "CreditLimit": {
+                        "N": "39880"
+                    },
+                    "CurrentBalance": {
+                        "N": "9309.39"
+                    },
+                    "LastPaymentDate": {
+                        "S": "2025-01-31"
+                    },
+                    "AccountStatus": {
+                        "S": "Closed"
+                    },
+                    "InterestRate": {
+                        "N": "0.0"
+                    }
+                }
+            }
+        },
+        {
+            "PutRequest": {
+                "Item": {
+                    "CustomerID": {
+                        "S": "CUST0040"
+                    },
+                    "AccountNumber": {
+                        "S": "ACC111004"
+                    },
+                    "State": {
+                        "S": "CA"
+                    },
+                    "ZipCode": {
+                        "S": "94105"
+                    },
+                    "CreditLimit": {
+                        "N": "13014"
+                    },
+                    "CurrentBalance": {
+                        "N": "29971.78"
+                    },
+                    "LastPaymentDate": {
+                        "S": "2025-01-28"
+                    },
+                    "AccountStatus": {
+                        "S": "Closed"
+                    },
+                    "InterestRate": {
+                        "N": "0.0"
+                    }
+                }
+            }
+        },
+        {
+            "PutRequest": {
+                "Item": {
+                    "CustomerID": {
+                        "S": "CUST0041"
+                    },
+                    "AccountNumber": {
+                        "S": "ACC938946"
+                    },
+                    "State": {
+                        "S": "CA"
+                    },
+                    "ZipCode": {
+                        "S": "94105"
+                    },
+                    "CreditLimit": {
+                        "N": "16429"
+                    },
+                    "CurrentBalance": {
+                        "N": "27941.59"
+                    },
+                    "LastPaymentDate": {
+                        "S": "2025-01-17"
+                    },
+                    "AccountStatus": {
+                        "S": "Active"
+                    },
+                    "InterestRate": {
+                        "N": "3.15"
+                    }
+                }
+            }
+        },
+        {
+            "PutRequest": {
+                "Item": {
+                    "CustomerID": {
+                        "S": "CUST0042"
+                    },
+                    "AccountNumber": {
+                        "S": "ACC819849"
+                    },
+                    "State": {
+                        "S": "GA"
+                    },
+                    "ZipCode": {
+                        "S": "30301"
+                    },
+                    "CreditLimit": {
+                        "N": "24286"
+                    },
+                    "CurrentBalance": {
+                        "N": "4564.87"
+                    },
+                    "LastPaymentDate": {
+                        "S": "2025-02-05"
+                    },
+                    "AccountStatus": {
+                        "S": "Active"
+                    },
+                    "InterestRate": {
+                        "N": "3.15"
+                    }
+                }
+            }
+        },
+        {
+            "PutRequest": {
+                "Item": {
+                    "CustomerID": {
+                        "S": "CUST0043"
+                    },
+                    "AccountNumber": {
+                        "S": "ACC759427"
+                    },
+                    "State": {
+                        "S": "WA"
+                    },
+                    "ZipCode": {
+                        "S": "98101"
+                    },
+                    "CreditLimit": {
+                        "N": "15447"
+                    },
+                    "CurrentBalance": {
+                        "N": "33340.62"
+                    },
+                    "LastPaymentDate": {
+                        "S": "2025-01-22"
+                    },
+                    "AccountStatus": {
+                        "S": "Closed"
+                    },
+                    "InterestRate": {
+                        "N": "0.0"
+                    }
+                }
+            }
+        },
+        {
+            "PutRequest": {
+                "Item": {
+                    "CustomerID": {
+                        "S": "CUST0044"
+                    },
+                    "AccountNumber": {
+                        "S": "ACC833481"
+                    },
+                    "State": {
+                        "S": "CA"
+                    },
+                    "ZipCode": {
+                        "S": "94105"
+                    },
+                    "CreditLimit": {
+                        "N": "8225"
+                    },
+                    "CurrentBalance": {
+                        "N": "6506.12"
+                    },
+                    "LastPaymentDate": {
+                        "S": "2025-01-14"
+                    },
+                    "AccountStatus": {
+                        "S": "Active"
+                    },
+                    "InterestRate": {
+                        "N": "3.15"
+                    }
+                }
+            }
+        },
+        {
+            "PutRequest": {
+                "Item": {
+                    "CustomerID": {
+                        "S": "CUST0045"
+                    },
+                    "AccountNumber": {
+                        "S": "ACC443324"
+                    },
+                    "State": {
+                        "S": "FL"
+                    },
+                    "ZipCode": {
+                        "S": "33130"
+                    },
+                    "CreditLimit": {
+                        "N": "35595"
+                    },
+                    "CurrentBalance": {
+                        "N": "14804.97"
+                    },
+                    "LastPaymentDate": {
+                        "S": "2025-01-10"
+                    },
+                    "AccountStatus": {
+                        "S": "Active"
+                    },
+                    "InterestRate": {
+                        "N": "3.15"
+                    }
+                }
+            }
+        },
+        {
+            "PutRequest": {
+                "Item": {
+                    "CustomerID": {
+                        "S": "CUST0046"
+                    },
+                    "AccountNumber": {
+                        "S": "ACC325078"
+                    },
+                    "State": {
+                        "S": "IL"
+                    },
+                    "ZipCode": {
+                        "S": "60601"
+                    },
+                    "CreditLimit": {
+                        "N": "29099"
+                    },
+                    "CurrentBalance": {
+                        "N": "8815.04"
+                    },
+                    "LastPaymentDate": {
+                        "S": "2025-01-22"
+                    },
+                    "AccountStatus": {
+                        "S": "Past Due"
+                    },
+                    "InterestRate": {
+                        "N": "4.52"
+                    }
+                }
+            }
+        },
+        {
+            "PutRequest": {
+                "Item": {
+                    "CustomerID": {
+                        "S": "CUST0047"
+                    },
+                    "AccountNumber": {
+                        "S": "ACC533016"
+                    },
+                    "State": {
+                        "S": "GA"
+                    },
+                    "ZipCode": {
+                        "S": "30301"
+                    },
+                    "CreditLimit": {
+                        "N": "24525"
+                    },
+                    "CurrentBalance": {
+                        "N": "25592.22"
+                    },
+                    "LastPaymentDate": {
+                        "S": "2025-02-03"
+                    },
+                    "AccountStatus": {
+                        "S": "Active"
+                    },
+                    "InterestRate": {
+                        "N": "3.15"
+                    }
+                }
+            }
+        },
+        {
+            "PutRequest": {
+                "Item": {
+                    "CustomerID": {
+                        "S": "CUST0048"
+                    },
+                    "AccountNumber": {
+                        "S": "ACC268399"
+                    },
+                    "State": {
+                        "S": "AZ"
+                    },
+                    "ZipCode": {
+                        "S": "85001"
+                    },
+                    "CreditLimit": {
+                        "N": "24118"
+                    },
+                    "CurrentBalance": {
+                        "N": "33826.94"
+                    },
+                    "LastPaymentDate": {
+                        "S": "2024-12-20"
+                    },
+                    "AccountStatus": {
+                        "S": "Active"
+                    },
+                    "InterestRate": {
+                        "N": "3.15"
+                    }
+                }
+            }
+        },
+        {
+            "PutRequest": {
+                "Item": {
+                    "CustomerID": {
+                        "S": "CUST0049"
+                    },
+                    "AccountNumber": {
+                        "S": "ACC826235"
+                    },
+                    "State": {
+                        "S": "NC"
+                    },
+                    "ZipCode": {
+                        "S": "27513"
+                    },
+                    "CreditLimit": {
+                        "N": "23983"
+                    },
+                    "CurrentBalance": {
+                        "N": "29865.57"
+                    },
+                    "LastPaymentDate": {
+                        "S": "2025-01-12"
+                    },
+                    "AccountStatus": {
+                        "S": "Past Due"
+                    },
+                    "InterestRate": {
+                        "N": "4.52"
+                    }
+                }
+            }
+        },
+        {
+            "PutRequest": {
+                "Item": {
+                    "CustomerID": {
+                        "S": "CUST0050"
+                    },
+                    "AccountNumber": {
+                        "S": "ACC203020"
+                    },
+                    "State": {
+                        "S": "AZ"
+                    },
+                    "ZipCode": {
+                        "S": "85001"
+                    },
+                    "CreditLimit": {
+                        "N": "29086"
+                    },
+                    "CurrentBalance": {
+                        "N": "2618.28"
+                    },
+                    "LastPaymentDate": {
+                        "S": "2025-02-02"
+                    },
+                    "AccountStatus": {
+                        "S": "Closed"
+                    },
+                    "InterestRate": {
+                        "N": "0.0"
+                    }
+                }
+            }
+        }
+    ]
+}
