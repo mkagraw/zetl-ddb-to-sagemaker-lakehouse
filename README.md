@@ -1,2 +1,2 @@
 # zetl-ddb-to-sagemaker-lakehouse
-Zero ETL - Amazon DynamoDB toSageMaker LakeHouse
+Zero ETL - Amazon DynamoDB to SageMaker LakeHouse
