@@ -1,0 +1,28 @@
+'{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "GlueConnections",
+            "Effect": "Allow",
+            "Action": [
+                "glue:GetConnections",
+                "glue:GetConnection"
+            ],
+            "Resource": [
+                "arn:aws:glue:*:536059787360:catalog",
+                "arn:aws:glue:us-east-1:536059787360:connection/*"
+            ]
+        },
+        {
+            "Sid": "GlueActionBasedPermissions",
+            "Effect": "Allow",
+            "Action": [
+                "glue:ListEntities",
+                "glue:RefreshOAuth2Tokens"
+            ],
+            "Resource": [
+                "*"
+            ]
+        }
+    ]
+}'

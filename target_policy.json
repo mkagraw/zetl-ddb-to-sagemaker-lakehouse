@@ -1,0 +1,60 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "VisualEditor0",
+            "Effect": "Allow",
+            "Action": "cloudwatch:PutMetricData",
+            "Resource": "*",
+            "Condition": {
+                "StringEquals": {
+                    "cloudwatch:namespace": "AWS/Glue/ZeroETL"
+                }
+            }
+        },
+        {
+            "Sid": "VisualEditor1",
+            "Effect": "Allow",
+            "Action": [
+                "logs:CreateLogStream",
+                "logs:CreateLogGroup",
+                "logs:PutLogEvents"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "VisualEditor2",
+            "Effect": "Allow",
+            "Action": [
+                "glue:GetDatabase",
+                "s3:ListBucket"
+            ],
+            "Resource": [
+                "arn:aws:glue:us-east-1:536059787360:catalog",
+                "arn:aws:glue:us-east-1:536059787360:database/customerdb",
+                "arn:aws:s3:::glue-zetl-target-536059787360-us-east-1"
+            ]
+        },
+        {
+            "Sid": "VisualEditor3",
+            "Effect": "Allow",
+            "Action": [
+                "s3:PutObject",
+                "s3:GetObject",
+                "s3:DeleteObject",
+                "glue:GetResourcePolicy",
+                "glue:GetTableVersion",
+                "glue:CreateTable",
+                "glue:GetTableVersions",
+                "glue:UpdateTable",
+                "glue:GetTable"
+            ],
+            "Resource": [
+                "arn:aws:s3:::glue-zetl-target-536059787360-us-east-1/customerdb/*",
+                "arn:aws:glue:us-east-1:536059787360:catalog",
+                "arn:aws:glue:us-east-1:536059787360:table/customerdb/*",
+                "arn:aws:glue:us-east-1:536059787360:database/customerdb"
+            ]
+        }
+    ]
+}
