@@ -9,8 +9,8 @@
                 "glue:GetConnection"
             ],
             "Resource": [
-                "arn:aws:glue:*:536059787360:catalog",
-                "arn:aws:glue:us-east-1:536059787360:connection/*"
+                "arn:aws:glue:*:<ACCOUNT-ID>:catalog",
+                "arn:aws:glue:us-east-1:<ACCOUNT-ID>:connection/*"
             ]
         },
         {
