@@ -30,9 +30,9 @@
                 "s3:ListBucket"
             ],
             "Resource": [
-                "arn:aws:glue:us-east-1:536059787360:catalog",
-                "arn:aws:glue:us-east-1:536059787360:database/customerdb",
-                "arn:aws:s3:::glue-zetl-target-536059787360-us-east-1"
+                "arn:aws:glue:us-east-1:<ACCOUNT-ID>:catalog",
+                "arn:aws:glue:us-east-1:<ACCOUNT-ID>:database/customerdb",
+                "arn:aws:s3:::glue-zetl-target-<ACCOUNT-ID>-us-east-1"
             ]
         },
         {
@@ -50,10 +50,10 @@
                 "glue:GetTable"
             ],
             "Resource": [
-                "arn:aws:s3:::glue-zetl-target-536059787360-us-east-1/customerdb/*",
-                "arn:aws:glue:us-east-1:536059787360:catalog",
-                "arn:aws:glue:us-east-1:536059787360:table/customerdb/*",
-                "arn:aws:glue:us-east-1:536059787360:database/customerdb"
+                "arn:aws:s3:::glue-zetl-target-<ACCOUNT-ID>-us-east-1/customerdb/*",
+                "arn:aws:glue:us-east-1:<ACCOUNT-ID>:catalog",
+                "arn:aws:glue:us-east-1:<ACCOUNT-ID>:table/customerdb/*",
+                "arn:aws:glue:us-east-1:<ACCOUNT-ID>:database/customerdb"
             ]
         }
     ]
