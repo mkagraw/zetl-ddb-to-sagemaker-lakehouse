@@ -15,10 +15,10 @@
         "Resource": "*",
         "Condition": {
           "StringEquals": {
-            "aws:SourceAccount": "536059787360"
+            "aws:SourceAccount": "<ACCOUNT-ID>"
           },
           "StringLike": {
-            "aws:SourceArn": "arn:aws:glue:us-east-1:536059787360:integration:*"
+            "aws:SourceArn": "arn:aws:glue:us-east-1:<ACCOUNT-ID>:integration:*"
           }
         }
       }
