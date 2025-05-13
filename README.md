@@ -1,92 +1,56 @@
-# Amazon DynamoDB zero-ETL integration with Amazon SageMaker Lakehouse – Part 1
+# Amazon DynamoDB zero-ETL integration with Amazon SageMaker Lakehouse and data visualization using Sagemaker Unified Studio
 
-[Amazon DynamoDB](https://aws.amazon.com/dynamodb/) [zero-ETL integration](https://aws.amazon.com/what-is/zero-etl/) with [Amazon SageMaker Lakehouse](https://aws.amazon.com/sagemaker/) allows you to run analytics workloads on your DynamoDB data without having to set up and manage extract, transform, and load (ETL) pipelines. You can now seamlessly consolidate your data from different tables and databases into SageMaker Lakehouse, giving you the ability to run holistic analytics across all your data. The primary benefits of using the zero-ETL integration with SageMaker Lakehouse are:
-
-- **Isolating analytics workloads** – With zero-ETL integrations, you can run analytics workloads on you DynamoDB data without consuming any DynamoDB table capacity. You can isolate analytics workloads from operational workloads, making sure that there is no impact on your critical application running on DynamoDB.
-- **Enhanced query flexibility** – Analysts can perform complex, multi-step aggregations and queries using the full capabilities of analytics tools, such as SageMaker Lakehouse.
-- **Partitioning and schema evolution** – With the flexible schema and partitioning features, SageMaker Lakehouse allows storing and querying data efficiently, supporting schema changes without downtime or data migration.
-- **Time travel for historical analytics** – Because your data is stored in [Apache Iceberg](https://iceberg.apache.org/)\-compatible table formats, the SageMaker Lakehouse time travel feature simplifies querying historical snapshots, making it possible to analyze past data states without complex archiving or rollback systems.
-
-In this two-part series, we first walk through the prerequisites and initial setup for the zero-ETL integration. In [Part 2](file:///Users/mkagraw/Downloads/part2_blog_link), we cover setting up [Amazon SageMaker Unified Studio](https://aws.amazon.com/sagemaker/unified-studio/), followed by running data analysis to showcase its capabilities. We illustrate our solution walkthrough with an example of a credit card company that wants to analyze its customer behavior and spending trends.
-
-## Solution overview
-
-This zero-ETL integration creates and maintains Iceberg-compatible tables in an [AWS Glue Data Catalog](https://docs.aws.amazon.com/prescriptive-guidance/latest/serverless-etl-aws-glue/aws-glue-data-catalog.html) that sits on top of your [Amazon Simple Storage Service](http://aws.amazon.com/s3) (Amazon S3) bucket. You can either query the Data Catalog directly using tools like [Amazon Athena](http://aws.amazon.com/athena), or publish it to SageMaker Lakehouse to combine with other datasets.
-
-The zero-ETL integration uses DynamoDB exports to continuously replicate data changes from DynamoDB to your S3 bucket every 15–30 minutes. This replication is done with no performance or availability impact to your DynamoDB tables, and without consuming DynamoDB RCUs. Your applications can continue to read from and write to your DynamoDB tables. Data from those tables will be available for analytics through SageMaker Lakehouse or other analytics tools.
-
-The following diagram illustrates the solution architecture.
-
-
-
-For our use case, a leading credit card company relies on DynamoDB as its operational data store for managing customer profiles. To drive smarter, faster decision-making, the company is now looking to gain deeper insights into customer behavior and spending trends. Using the zero-ETL integration between DynamoDB and SageMaker Lakehouse, they plan to build an analytics pipeline that enables access to operational data for advanced query and analysis. This streamlined data flow empowers teams with timely, actionable insights to stay ahead of evolving business dynamics.
+[Amazon DynamoDB](https://aws.amazon.com/dynamodb/) [zero-ETL integration](https://aws.amazon.com/what-is/zero-etl/) with [Amazon SageMaker Lakehouse](https://aws.amazon.com/sagemaker/) allows you to run analytics workloads on your DynamoDB data without having to set up and manage extract, transform, and load (ETL) pipelines. You can now seamlessly consolidate your data from different tables and databases into SageMaker Lakehouse, giving you the ability to run holistic analytics across all your data. 
 
 The solution outlines a step-by-step approach to:
 
 - Integrate DynamoDB with SageMaker Lakehouse, enabling a seamless data flow.
 - Use SageMaker Unified Studio with its generative SQL assistant powered by [Amazon Q](https://aws.amazon.com/q/), making it effortless to explore, analyze, and query operational and analytical data.
 
-## Prerequisites
+## Step-by-step
 
-Setting up an integration between the source (DynamoDB table) and target (SageMaker Lakehouse) require some [prerequisites](https://docs.aws.amazon.com/glue/latest/dg/zero-etl-prerequisites.html#zero-etl-setup-target-resources), such as configuring [AWS Identity and Access Management](https://aws.amazon.com/iam/) (IAM) roles that [AWS Glue](https://aws.amazon.com/glue) uses to access data from the source, and write to the target.
+1. Open an [AWS CloudShell](uhttps://aws.amazon.com/cloudshell/) terminal window & clone the repo:
 
-Complete the following steps to set up the prerequisite resources:
+    ```git clone https://github.com/mkagraw/zetl-ddb-to-sagemaker-lakehouse.git```
 
-1. Open an [AWS CloudShell](uhttps://aws.amazon.com/cloudshell/) terminal window.
-2. Clone the repo:
+2. cd to the repo folder **zetl-ddb-to-sagemaker-lakehouse**, replace ```<ACCOUNT-ID>``` in the files with your own AWS account ID using the following command:
 
-git clone <https://github.com/mkagraw/zetl-ddb-to-sagemaker-lakehouse.git>
+    ```cd zetl-ddb-to-sagemaker-lakehouse; find . -type f -exec sed -i 's/"<ACCOUNT-ID>"/XXXXXXXXXXXX/g' {} \\;```
 
-1. cd to the repo folder zetl-ddb-to-sagemaker-lakehouse.
-2. Replace &lt;ACCOUNT-ID&gt; in the files with your own AWS account ID using the following command:
+**Note:** Below commands creates all AWS resources in the **us-east-1** AWS Region. If you want to change your Region, DynamoDB table name, S3 URI location, AWS Glue database, or AWS Glue table name, update the files accordingly.
 
-find . -type f -exec sed -i 's/"&lt;ACCOUNT-ID&gt;"/XXXXXXXXXXXX/g' {} \\;
+3. Create the DynamoDB table CustomerAccounts and verify table creation status:
 
-The following commands create the AWS resources in the us-east-1 AWS Region. If you want to change your Region, DynamoDB table name, S3 URI location, AWS Glue database, or AWS Glue table name, update the files accordingly.
+    ```aws dynamodb create-table --cli-input-json file://CustomerAccountsTable.json --region us-east-1```
 
-1. Create the DynamoDB table CustomerAccounts and verify table creation status:
+    ```aws dynamodb describe-table --table-name CustomerAccounts --region us-east-1```
 
-aws dynamodb create-table \\  
-\--cli-input-json file://CustomerAccountsTable.json \\  
-\--region us-east-1  
-<br/>aws dynamodb describe-table --table-name CustomerAccounts --region us-east-1
+4. Enable point-in-time recovery (PITR) for the DynamoDB table **CustomerAccounts**
 
-1. Enable point-in-time recovery (PITR) for the DynamoDB table CustomerAccounts:
+    ```aws dynamodb update-continuous-backups --table-name CustomerAccounts --point-in-time-recovery-specification PointInTimeRecoveryEnabled=true --region us-east-1```
 
-aws dynamodb update-continuous-backups \\  
-    --table-name CustomerAccounts \\  
-    --point-in-time-recovery-specification PointInTimeRecoveryEnabled=true \\  
-    --region us-east-1
+5. Load sample data into the DynamoDB table CustomerAccounts:
 
-1. Load sample data into the DynamoDB table CustomerAccounts:
+```aws dynamodb batch-write-item --request-items file://sample-data-load-1.json --region us-east-1```
 
-aws dynamodb batch-write-item \\  
-\--request-items file://sample-data-load-1.json \\  
-\--region us-east-1
+6. To access data from your source DynamoDB table, AWS Glue requires access to describe the table, and export data from it. DynamoDB recently introduced a feature that allows configuring a [resource-based access control policy](https://docs.aws.amazon.com/glue/latest/dg/zero-etl-sources.html#zero-etl-config-source-dynamodb). Add and verify the following resource policy for the DynamoDB table CustomerAccounts, enabling the zero-ETL integration to access DynamoDB table data.
 
-To access data from your source DynamoDB table, AWS Glue requires access to describe the table, and export data from it. DynamoDB recently introduced a feature that allows configuring a [resource-based access control policy](https://docs.aws.amazon.com/glue/latest/dg/zero-etl-sources.html#zero-etl-config-source-dynamodb). Add and verify the following resource policy for the DynamoDB table CustomerAccounts, enabling the zero-ETL integration to access DynamoDB table data.
+**NOTE:** Before running the following commands, replace ```<ACCOUNT-ID>``` with your own AWS account ID
 
-1. Before running the following commands, replace &lt;ACCOUNT-ID&gt; with your own AWS account ID:
+    aws dynamodb put-resource-policy --resource-arn arn:aws:dynamodb:us-east-1:"<ACCOUNT-ID>":table/CustomerAccounts --policy file://CustomerAccounts_ResourcePolicy.json --region us-east-1
 
-aws dynamodb put-resource-policy \\  
-    --resource-arn arn:aws:dynamodb:us-east-1:&lt;ACCOUNT-ID&gt;:table/CustomerAccounts \\  
-    --policy file://CustomerAccounts_ResourcePolicy.json \\  
-    --region us-east-1
+    aws dynamodb get-resource-policy --resource-arn arn:aws:dynamodb:us-east-1:"<ACCOUNT-ID>":table/CustomerAccounts --region us-east-1
 
-aws dynamodb get-resource-policy \\
-\--resource-arn arn:aws:dynamodb:us-east-1:&lt;ACCOUNT-ID&gt;:table/CustomerAccounts \\
-\--region us-east-1
+7. Create an S3 bucket, folder, and an [AWS Glue database](https://docs.aws.amazon.com/glue/latest/dg/zero-etl-prerequisites.html#zero-etl-setup-target-resources-glue-database) by providing the S3 URI location:
 
-1. Create an S3 bucket, folder, and an [AWS Glue database](https://docs.aws.amazon.com/glue/latest/dg/zero-etl-prerequisites.html#zero-etl-setup-target-resources-glue-database) by providing the S3 URI location:
+    ```aws s3 mb s3://glue-zetl-target-&lt;ACCOUNT-ID&gt;-us-east-1 --region us-east-1```
 
-aws s3 mb s3://glue-zetl-target-&lt;ACCOUNT-ID&gt;-us-east-1 --region us-east-1  
-<br/>aws s3api put-object \\
-\--bucket glue-zetl-target-&lt;ACCOUNT-ID&gt;-us-east-1 \\  
-\--key customerdb/  
-<br/>aws glue create-database --database-input '{  
+    ```aws s3api put-object --bucket glue-zetl-target-&lt;ACCOUNT-ID&gt;-us-east-1 --key customerdb/``` 
+
+aws glue create-database --database-input '{  
     "Name": "customerdb",  
     "Description": "Glue database for storing metadata with S3 location",  
-    "LocationUri": "s3://glue-zetl-target-&lt;ACCOUNT-ID&gt;-us-east-1/customerdb/",  
+    "LocationUri": "s3://glue-zetl-target-"<ACCOUNT-ID>"-us-east-1/customerdb/",  
     "Parameters": {  
         "CreatedBy": "AWS CLI"  
     }  
