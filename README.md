@@ -1,449 +1,409 @@
-# Amazon DynamoDB zero-ETL integration with Amazon SageMaker Lakehouse
-Zero ETL - Amazon DynamoDB to SageMaker LakeHouse
+# Amazon DynamoDB zero-ETL integration with Amazon SageMaker Lakehouse – Part 1
 
-## Table of Content
+[Amazon DynamoDB](https://aws.amazon.com/dynamodb/) [zero-ETL integration](https://aws.amazon.com/what-is/zero-etl/) with [Amazon SageMaker Lakehouse](https://aws.amazon.com/sagemaker/) allows you to run analytics workloads on your DynamoDB data without having to set up and manage extract, transform, and load (ETL) pipelines. You can now seamlessly consolidate your data from different tables and databases into SageMaker Lakehouse, giving you the ability to run holistic analytics across all your data. The primary benefits of using the zero-ETL integration with SageMaker Lakehouse are:
 
-1. [Solution Overview](#overview)
-    - [Cost](#cost)
-2. [Prerequisites](#prerequisites)
-    - [Operating System](#operating-system)
-3. [Deployment Steps](#deployment-steps)
-4. [Deployment Validation](#deployment-validation)
-5. [Running the Guidance](#running-the-guidance)
-6. [Next Steps](#next-steps)
-7. [Cleanup](#cleanup)
+- **Isolating analytics workloads** – With zero-ETL integrations, you can run analytics workloads on you DynamoDB data without consuming any DynamoDB table capacity. You can isolate analytics workloads from operational workloads, making sure that there is no impact on your critical application running on DynamoDB.
+- **Enhanced query flexibility** – Analysts can perform complex, multi-step aggregations and queries using the full capabilities of analytics tools, such as SageMaker Lakehouse.
+- **Partitioning and schema evolution** – With the flexible schema and partitioning features, SageMaker Lakehouse allows storing and querying data efficiently, supporting schema changes without downtime or data migration.
+- **Time travel for historical analytics** – Because your data is stored in [Apache Iceberg](https://iceberg.apache.org/)\-compatible table formats, the SageMaker Lakehouse time travel feature simplifies querying historical snapshots, making it possible to analyze past data states without complex archiving or rollback systems.
 
-## Solution Overview
+In this two-part series, we first walk through the prerequisites and initial setup for the zero-ETL integration. In [Part 2](file:///Users/mkagraw/Downloads/part2_blog_link), we cover setting up [Amazon SageMaker Unified Studio](https://aws.amazon.com/sagemaker/unified-studio/), followed by running data analysis to showcase its capabilities. We illustrate our solution walkthrough with an example of a credit card company that wants to analyze its customer behavior and spending trends.
 
-We will be using [DynamoDB](https://aws.amazon.com/dynamodb/) [Incremental export to Amazon Simple Storage Service (Amazon S3)](https://aws.amazon.com/blogs/database/introducing-incremental-export-from-amazon-dynamodb-to-amazon-s3/) feature to update the downstream systems regularly using only the changed data. You no longer need to do a full export each time you need fresh data. The incremental export feature outputs only the data items that have been inserted, updated, or deleted between two specified points in time. The file format for incremental exports is different from full exports because it acts as an overlay (like a patch in source code) and includes metadata such as the time of each item’s last update as well as the old and new images of the item. Tooling that can read the full export format will not natively be able to read the combination of a full export plus the series of incremental exports without effectively applying the overlay first. The typical way to setup your analytics using DynamoDB exports is to first initiate a one-time full export to generate a new Iceberg table, and then repeatedly perform incremental exports (each incremental time period can be as small as 15 minutes or as large as 24 hours) to update the Iceberg table with all the changes. The data processing is done using Spark jobs running at scale on EMR serverless.
+## Solution overview
 
-In this post, you learn how to bulk process a series of full and incremental exports using [Amazon EMR Serverless]([https://aws.amazon.com/blogs/database/use-amazon-dynamodb-incremental-export-to-update-apache-iceberg-tables/#:~:text=incremental%20exports%20using-,Amazon%20EMR%20Serverless,-with%20Apache%20Spark](https://aws.amazon.com/emr/)) with [Apache Spark](https://spark.apache.org/) to produce a single [Apache Iceberg](https://iceberg.apache.org/) table representing the latest state of the DynamoDB table, which you will then be able to query using [Amazon Athena](https://aws.amazon.com/athena/?whats-new-cards.sort-by=item.additionalFields.postDateTime&whats-new-cards.sort-order=desc). Note that everything, from exporting to bulk processing to querying, is serverless.
+This zero-ETL integration creates and maintains Iceberg-compatible tables in an [AWS Glue Data Catalog](https://docs.aws.amazon.com/prescriptive-guidance/latest/serverless-etl-aws-glue/aws-glue-data-catalog.html) that sits on top of your [Amazon Simple Storage Service](http://aws.amazon.com/s3) (Amazon S3) bucket. You can either query the Data Catalog directly using tools like [Amazon Athena](http://aws.amazon.com/athena), or publish it to SageMaker Lakehouse to combine with other datasets.
 
-Overview of the AWS Services and Technologies Used in the Guidance:
+The zero-ETL integration uses DynamoDB exports to continuously replicate data changes from DynamoDB to your S3 bucket every 15–30 minutes. This replication is done with no performance or availability impact to your DynamoDB tables, and without consuming DynamoDB RCUs. Your applications can continue to read from and write to your DynamoDB tables. Data from those tables will be available for analytics through SageMaker Lakehouse or other analytics tools.
 
-- Amazon EMR Serverless makes it simple to run applications using open-source analytics frameworks like Apache Spark and Apache Hive without configuring, managing, or scaling clusters.
-  
-- Apache Spark is an interface for programming clusters with implicit data parallelism and fault tolerance.
-
-- Apache Iceberg is a table format geared for large-scale datasets stored in S3 that has features like rapid query performance, atomic commits, and concurrent writing abilities. It also supports time-travel to query the data at points in the past. You can learn more on [how Iceberg works](https://docs.aws.amazon.com/emr/latest/ReleaseGuide/emr-iceberg-how-it-works.html).
-
-- Amazon Athena is a serverless, interactive analytics service built on open-source frameworks, supporting open-table and file formats
-
-The following diagram shows the pipeline:
-
-![Architecture diagram](./img/Architecture.png)
-
-1. Application traffic consistently adding, updating, and deleting items in an Amazon DynamoDB table. 
-
-2. Perform full export of your Amazon DynamoDB table. This will writes the exported data into Amazon S3 in JSON format.
-
-3. Create, prepare and use Amazon EMR Serverless. This will read the full export of Amazon DynamoDB table from Amazon S3 and will dynamically identify Iceberg table schema with the full set of columns that will map to all the unique attributes from your full DynamoDB exported dataset
-
-4. Create AWS Glue Data Catalog to persist the Iceberg table meta store to query the table from Athena (or any Hive Meta store compatible query engine) using the same Glue Catalog
-
-5. Use Amazon EMR Serverless to build the Iceberg table based on the full export of Amazon DynamoDB table and using the Iceberg table generated schema
-
-6. Analyst uses Amazon Athena query to verify that the Iceberg table is accessible and readable. This involves executing SELECT query on the Iceberg table through Athena to ensure that data can be retrieved successfully and accurately.
-
-7. Perform an incremental export of your Amazon DynamoDB table in JSON format. This will only export the changed data from Amazon DynamoDB table since the last full or incremental export
-
-8. Use Amazon EMR Serverless to update previously created Iceberg table with the incremental export of Amazon DynamoDB table data
-
-9. Analyst will use same Amazon Athena query to verify that the Iceberg table shows changed records. For example, if you’ve added or deleted items in DynamoDB table after full export, the count should reflect this
-
-### Cost
-
-You are responsible for the cost of the AWS services used while running this Guidance.
-
-As of 04/15/2024, the cost for running this guidance with the default settings in the US East (N. Virginia) is approximately $44.80 per month for processing 10 GB Full Export & 1 GB incremental export.
+The following diagram illustrates the solution architecture.
 
 
-| AWS service  | Dimensions | Monthly Cost [USD] |
-| ----------- | ------------ | ------------ |
-| Amazon DynamoDB | Table class (Standard), Average item size (all attributes) (.5 KB), Data storage size (10 GB) Full export to Amazon S3 (10 GB), Incremental export to Amazon S3 (1 GB) | $ 3.60 month |
-| AWS S3 | 5 GB of Amazon S3 Standard storage, 20,000 Get Requests, 2,000 Put Requests, and 100 GB of data transfer out  | $ 0.49 month |
-| Amazon EMR Serverless | 4 vCPU hours x 49.60 hours job runtime/month & 16 memory hours  | $ 15.02 month |
-| Amazon Athena | Total number of queries (2976 per month), Amount of data scanned per query (1 GB)  | $ 14.53 month |
-| AWS Glue | Number of DPUs for Apache Spark job (2), Number of DPUs for Python Shell job (0.0625) Number of Objects stored (1 million per month), Number of access requests (1 million per month)  | $ 11.15 month |
-| Total |  | $ 44.80 month|
 
-We recommend creating a [Budget](https://docs.aws.amazon.com/cost-management/latest/userguide/budgets-managing-costs.html) through [AWS Cost Explorer](https://aws.amazon.com/aws-cost-management/aws-cost-explorer/) to help manage costs. Prices are subject to change. For full details, refer to the pricing webpage for each AWS service used in this Guidance.
+For our use case, a leading credit card company relies on DynamoDB as its operational data store for managing customer profiles. To drive smarter, faster decision-making, the company is now looking to gain deeper insights into customer behavior and spending trends. Using the zero-ETL integration between DynamoDB and SageMaker Lakehouse, they plan to build an analytics pipeline that enables access to operational data for advanced query and analysis. This streamlined data flow empowers teams with timely, actionable insights to stay ahead of evolving business dynamics.
+
+The solution outlines a step-by-step approach to:
+
+- Integrate DynamoDB with SageMaker Lakehouse, enabling a seamless data flow.
+- Use SageMaker Unified Studio with its generative SQL assistant powered by [Amazon Q](https://aws.amazon.com/q/), making it effortless to explore, analyze, and query operational and analytical data.
 
 ## Prerequisites
 
-- The [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) installed.
-- The visual editor of your choice, for example [Visual Studio Code](https://code.visualstudio.com/).
-- Install CloudFormation template to quickly deploy and test the solution. Follow the steps that are mentioned in this [link](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/cfn-console-create-stack.html) to deploy the stack.
-- Permissions to deploy an DynamoDB table.
-
-### Operating System
-
-This solution supports build environments in Mac or Windows.
-
-### AWS account requirements
-
-This Guidance requires that you have access to the following AWS services:
-
-- Amazon DynamoDB
-- Amazon S3
-- Amazon EMR Serverless
-- Amazon Athena
-- AWS Glue
+Setting up an integration between the source (DynamoDB table) and target (SageMaker Lakehouse) require some [prerequisites](https://docs.aws.amazon.com/glue/latest/dg/zero-etl-prerequisites.html#zero-etl-setup-target-resources), such as configuring [AWS Identity and Access Management](https://aws.amazon.com/iam/) (IAM) roles that [AWS Glue](https://aws.amazon.com/glue) uses to access data from the source, and write to the target.
 
-## Deployment Steps
+Complete the following steps to set up the prerequisite resources:
 
-These deployment instructions are optimized to best work on Mac or Amazon Linux 2023. Deployment in another OS may require additional steps.
+1. Open an [AWS CloudShell](uhttps://aws.amazon.com/cloudshell/) terminal window.
+2. Clone the repo:
 
-1. Clone the repo using command ``` git clone https://github.com/aws-solutions-library-samples/guidance-for-incremental-data-exports-on-aws.git```
-2. cd to the repo folder ```cd guidance-for-incremental-data-exports-on-aws```
-3. cd to code folder to deploy the CloudFormation template ```cd code```
-4. Run the below command to deploy the stack in your account.
-```
-aws cloudformation create-stack \
---stack-name createddbtable \
---template-body file://CloudFormation.yaml
-```
+git clone <https://github.com/mkagraw/zetl-ddb-to-sagemaker-lakehouse.git>
 
-## Deployment Validation
+1. cd to the repo folder zetl-ddb-to-sagemaker-lakehouse.
+2. Replace &lt;ACCOUNT-ID&gt; in the files with your own AWS account ID using the following command:
 
-Open CloudFormation console and verify the status of the template with the name of the stack specified in step 4 of the deployment steps.
+find . -type f -exec sed -i 's/"&lt;ACCOUNT-ID&gt;"/XXXXXXXXXXXX/g' {} \\;
 
-## Running the Guidance
+The following commands create the AWS resources in the us-east-1 AWS Region. If you want to change your Region, DynamoDB table name, S3 URI location, AWS Glue database, or AWS Glue table name, update the files accordingly.
 
-You can use your existing DynamoDB table for export or can use the table ``product`` created by stack in the deployment step for analytics. Exporting from a table doesn’t change the table or interfere with other traffic to the table. If you want to create a small sample table just for experimental purposes, you can refer to the [getting started guide](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/GettingStartedDynamoDB.html) to setup your table.
+1. Create the DynamoDB table CustomerAccounts and verify table creation status:
 
-If you planning to use the DynamoDB table created by the stack in the deployment step then lets insert some items in the table before performing full export 
+aws dynamodb create-table \\  
+\--cli-input-json file://CustomerAccountsTable.json \\  
+\--region us-east-1  
+<br/>aws dynamodb describe-table --table-name CustomerAccounts --region us-east-1
 
-Run below CLI command to insert items in the DynamoDB table ``product`` created by stack
-```
-aws dynamodb put-item \
-    --table-name product \
-    --item '{
-        "product_id": {"S": "18"},
-        "quantity": {"N": "100"},
-        "remaining_count": {"N": "158"},
-        "inventory_date": {"S": "2023-11-28"},
-        "price": {"S": "0.3154686218727"},
-        "product_name": {"S": "Coffee Maker"}
-    }'
+1. Enable point-in-time recovery (PITR) for the DynamoDB table CustomerAccounts:
 
-aws dynamodb put-item \
-    --table-name product \
-    --item '{
-        "product_id": {"S": "13"},
-        "quantity": {"N": "10"},
-        "remaining_count": {"N": "626"},
-        "inventory_date": {"S": "2023-10-14"},
-        "price": {"S": "37644223522.8023"},
-        "product_name": {"S": "Wireless Bluetooth Headphones"}
-    }'
+aws dynamodb update-continuous-backups \\  
+    --table-name CustomerAccounts \\  
+    --point-in-time-recovery-specification PointInTimeRecoveryEnabled=true \\  
+    --region us-east-1
 
-    aws dynamodb put-item \
-    --table-name product \
-    --item '{
-        "product_id": {"S": "9"},
-        "quantity": {"N": "3"},
-        "remaining_count": {"N": "846"},
-        "inventory_date": {"S": "2023-12-06"},
-        "price": {"S": "97496296422.6562"},
-        "product_name": {"S": "Fitness Tracker"}
-    }'
+1. Load sample data into the DynamoDB table CustomerAccounts:
 
-    aws dynamodb put-item \
-    --table-name product \
-    --item '{
-        "product_id": {"S": "1"},
-        "quantity": {"N": "12"},
-        "remaining_count": {"N": "773"},
-        "inventory_date": {"S": "2023-10-25"},
-        "price": {"S": "8.21824213901464"},
-        "product_name": {"S": "Fitness Tracker"}
-    }'
-```
+aws dynamodb batch-write-item \\  
+\--request-items file://sample-data-load-1.json \\  
+\--region us-east-1
 
-These instructions use three S3 bucket locations.
+To access data from your source DynamoDB table, AWS Glue requires access to describe the table, and export data from it. DynamoDB recently introduced a feature that allows configuring a [resource-based access control policy](https://docs.aws.amazon.com/glue/latest/dg/zero-etl-sources.html#zero-etl-config-source-dynamodb). Add and verify the following resource policy for the DynamoDB table CustomerAccounts, enabling the zero-ETL integration to access DynamoDB table data.
 
-1. An S3 folder for the full and incremental exports (“dynamodb-export-bucket”)
-2. An S3 folder for the Spark scripts (“spark-script-bucket”)
-3. An S3 folder for the Iceberg table (“iceberg-bucket”) as well as a generated schema definition file
+1. Before running the following commands, replace &lt;ACCOUNT-ID&gt; with your own AWS account ID:
 
-You can use the same S3 bucket for all these with different prefixes, or you can use different buckets. We recommend you follow [S3 security best practices](https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html) when you setup S3 buckets.
+aws dynamodb put-resource-policy \\  
+    --resource-arn arn:aws:dynamodb:us-east-1:&lt;ACCOUNT-ID&gt;:table/CustomerAccounts \\  
+    --policy file://CustomerAccounts_ResourcePolicy.json \\  
+    --region us-east-1
 
-**Step 1: Perform a full export from your DynamoDB table**
+aws dynamodb get-resource-policy \\
+\--resource-arn arn:aws:dynamodb:us-east-1:&lt;ACCOUNT-ID&gt;:table/CustomerAccounts \\
+\--region us-east-1
 
-You’ll get things started with a full export of your DynamoDB table. This step is only done once.
+1. Create an S3 bucket, folder, and an [AWS Glue database](https://docs.aws.amazon.com/glue/latest/dg/zero-etl-prerequisites.html#zero-etl-setup-target-resources-glue-database) by providing the S3 URI location:
 
-1. To do a full export, navigate to the **Exports to S3** section in your DynamoDB console and choose Export to S3.
+aws s3 mb s3://glue-zetl-target-&lt;ACCOUNT-ID&gt;-us-east-1 --region us-east-1  
+<br/>aws s3api put-object \\
+\--bucket glue-zetl-target-&lt;ACCOUNT-ID&gt;-us-east-1 \\  
+\--key customerdb/  
+<br/>aws glue create-database --database-input '{  
+    "Name": "customerdb",  
+    "Description": "Glue database for storing metadata with S3 location",  
+    "LocationUri": "s3://glue-zetl-target-&lt;ACCOUNT-ID&gt;-us-east-1/customerdb/",  
+    "Parameters": {  
+        "CreatedBy": "AWS CLI"  
+    }  
+}' --region us-east-1
 
-2. Specify a DynamoDB table, an S3 bucket ```(<dynamodb-export-bucket>)```, and an optional prefix. Select **Full export** and select **Export from an earlier point in time**.
-Pick a nice round number time value from the recent past for simplicity. This will then be the starting time of your first incremental export. If you’re doing hourly exports, pick a recent top of the hour. In this example we will use ```2023-10-01 12:00:00``` in the local time zone. Select **DynamoDB JSON** as your output type, pick the encryption key, and choose **Export**.
+1. For integrations that use an AWS Glue database, add the permissions to the [catalog resource-based access policy](https://docs.aws.amazon.com/glue/latest/dg/zero-etl-prerequisites.html#zero-etl-setup-target-resources) to allow for integrations between source and target. You can access the catalog settings under the Data Catalog on the AWS Glue console, or run the following command:
 
-![Solutions Screen-1](./img/solutions-screen-1.jpeg)
+aws glue put-resource-policy --policy-in-json file://glue_catalog_rbac_policy.json
 
-For more details on how to do a full export, see AWS documentation on [DynamoDB exports](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/S3DataExport.HowItWorks.html).
+1. Create an IAM policy for source resources. This will enable the zero-ETL integration to access your connection.
 
-Once the full export completes, you will see the output in your S3 bucket.
+aws iam create-policy \\  
+\--policy-name zETLSPolicy \\  
+\--policy-document file://source_policy.json
 
-**Step 2: Create an EMR Serverless application**
+1. Create an IAM policy for target resources:
 
-Next, configure an EMR Serverless application that will act as the execution environment for all your bulk activities. EMR Serverless is ideal for these jobs because it runs for a short duration and then has a long delay before the next invocation. EMR Serverless automatically determines the resources that the application needs, allocates these resources to process your jobs, and releases the resources when the jobs finish. Hence, you do not incur any additional costs when your jobs are not running.
+aws iam create-policy \\  
+    --policy-name zETLTPolicy \\  
+    --policy-document file://target_policy.json
 
-From your AWS Console, make sure you’re in the same AWS Region as where your three buckets are located. Then search for **Amazon EMR** to open the EMR console. On the left sidebar choose **EMR Serverless**.
+1. Create an IAM policy to enable [Amazon CloudWatch](http://aws.amazon.com/cloudwatch) logging:
 
-![Solutions Screen-2](./img/solutions-screen-2.png)
+aws iam create-policy \\  
+    --policy-name zETLCWPolicy \\  
+    --policy-document file:\\\\cloud_watch_policy.json
 
-1. Select **Get started** (or if this isn’t your first time using EMR Studio, select **Manage applications**).
+1. Create an IAM role with the following trust permissions and attach the IAM policies to the target role:
 
-2. Now you can create an EMR Serverless application. Choose type **Spark** and the latest version of EMR from drop down as shown:
+aws iam create-role --role-name zETLTRole --assume-role-policy-document '{  
+    "Version": "2012-10-17",  
+    "Statement": \[  
+      {  
+        "Effect": "Allow",  
+        "Principal": {  
+          "Service": "glue.amazonaws.com"  
+        },  
+        "Action": "sts:AssumeRole"  
+      }  
+    \]  
+  }'
 
-![Solutions Screen-3](./img/solutions-screen-3.png)
+aws iam attach-role-policy \\  
+    --role-name zETLTRole \\  
+    --policy-arn arn:aws:iam::&lt;ACCOUNT-ID&gt;:policy/zETLSPolicy  
 
-There are other optional configurations you can adjust, but the defaults will work for this walkthrough. If you prefer the AWS command-line interface (CLI), the following command creates a similar cluster:
+aws iam attach-role-policy \\  
+    --role-name zETLTRole \\  
+    --policy-arn arn:aws:iam::&lt;ACCOUNT-ID&gt;:policy/zETLTPolicy  
 
-```
-aws emr-serverless create-application --name "ddb-incremental-exports" --type SPARK --release-label emr-6.14.0
-```
+aws iam attach-role-policy \\  
+    --role-name zETLTRole \\  
+    --policy-arn arn:aws:iam::&lt;ACCOUNT-ID&gt;:policy/zETLCWPolicy
 
-If you’re using the CLI, note the EMR serverless application ID that is returned. It is required in later steps. You can also retrieve the EMR serverless application ID from the AWS EMR console where you can see your newly created EMR serverless application.
+## Create the zero-ETL integration
 
-**Step 3: Prepare an EMR Serverless execution role**
+With the prerequisites complete, complete the following steps to create the zero-ETL integration:
 
-The EMR Serverless job execution requires an IAM role that has sufficient permissions to read from the ```<dynamodb-export-bucket>``` and ```<spark-script-bucket>```, read and write the ```<iceberg-bucket>```, and access the [AWS Glue Catalog](https://docs.aws.amazon.com/glue/latest/dg/catalog-and-crawler.html).
+1. On the DynamoDB console, choose **Integrations** in the navigation pane.
+2. Choose **Create integration**, then choose **Amazon SageMaker Lakehouse**. You will be redirected to Glue console.
 
-You can download a [sample set of AWS CLI commands](https://github.com/aws-solutions-library-samples/guidance-for-incremental-data-exports-on-aws/blob/main/code/emr_serverless_executionrole_sample.cli) then **replace the bucket placeholder names with your actual bucket names inside the script**. After replacing the bucket names, you can run the set of CLI commands to create an IAM role in your AWS account with the right permissions.
+!
 
-**Step 4: Use EMR Serverless to read the full export and dynamically identify the table schema**
+1. For your data source, select **Amazon DynamoDB**, then choose **Next**.
 
-DynamoDB doesn’t enforce a schema and different items can have different attributes. Iceberg tables, however, have a fixed schema. The best way to ensure that your unstructured DynamoDB data correctly maps to your structured Iceberg table is to create an Iceberg table with the full set of columns that will map to all the unique attributes from your full DynamoDB dataset.
+![]
+Next, you need to configure the source and target details.
 
-You can also define the schema manually but it might be easier to run a Spark job that analyzes your DynamoDB full export and outputs the schema with all the attributes.
+1. In the **Source details** section, for **DynamoDB table**, choose the table CustomerAccounts.
+2. In the **Target details** section, specify the Data Catalog name, target database name (customerdb), and target IAM role you created previously (zETLTargetRole).
 
-The script to infer the schema is available at [detect_schema_from_full_export.py](https://github.com/aws-solutions-library-samples/guidance-for-incremental-data-exports-on-aws/blob/main/code/detect_schema_from_full_export.py). It writes the generated schema in JSON format. Save the script and upload it to ```s3://<spark-script-bucket>/<optional-prefix>/.``` The IAM role above should give your EMR Serverless application read access to this bucket.
+![]
+Now you have options to configure the output.
 
-You will now submit a job to infer your schema using the full export. The job will be submitted to the EMR Serverless application you created in the previous step.
+1. For **Data partitioning**, you can either use DynamoDB table keys for partitioning, or specify custom partition keys.
+2. Choose **Next**.
 
-1. Go to the **Submit job** in you EMR application.
+![]
+1. Under **Configure integration**, you can configure your data encryption. You can use [AWS Key Management Service](https://aws.amazon.com/kms/) (AWS KMS), or a custom encryption key.
+2. Enter a name for the integration, and choose **Next**.
 
-2. Enter a name of your job. In this case, we will name it “detect_schema_from_full_export”.
-   
-3. For the **Runtime role**, use the ARN for the role you created in Step 3 (selectable from drop down).
+![]
+1. Review the configurations, and choose **Create and launch integration**.
 
-4. For the **Script location**, enter the S3 path where you saved the Python script (you can use the UI to find it).
+![]
+After the initial data ingestion is complete, the zero-ETL integration will be ready for use. The completion time varies depending on the size of your source DynamoDB table.
 
-5. For the **Script arguments**, provide the S3 location of the DynamoDB full export (from step 1) and the output file path where the schema file will be written. Note that job role running your EMR serverless application needs write permissions to the schema output location. You can use the ```<iceberg-bucket>``` since you already have the job role setup for write permissions on that bucket. Here is starter text to copy-paste for the arguments:
-```
-[
- "s3://<dynamodb-export-bucket>/<optional-prefix>/<full-export-folder>/",
- "s3://<iceberg-bucket>/<optional-prefix>/schema.json"
-]
-```
-Real example to demonstrate the script arguments:
-```
-[
- "s3://mybucket/exports/AWSDynamoDB/01697091611852-ae49471c/",
- "s3://myiceberg/schema/schema.json"
-]
-```
-Ensure that all three buckets are co-located in the same Region as the EMR Serverless application job. If they are not in the same region, the job will fail with a ```ConnectTimeoutException``` during execution.
+![]
+On the AWS Glue console, choose **Tables** under **Data Catalog** in the navigation pane, and open your table to observe more details, including the schema. The zero-ETL integration uses Iceberg to transform related data formats and structure in your DynamoDB data into appropriate formats in Amazon S3.
 
-![Solutions Screen-4](./img/solutions-screen-4.png)
+![]
+Lastly, you can confirm that your data is available in your S3 bucket.
 
-Alternatively, you can use the following AWS CLI submit for your job to the EMR Serverless application.
+![]
+## Conclusion
 
-```
-aws emr-serverless start-job-run \
-  --application-id application-id \
-  --execution-role-arn job-role-arn \
-  --job-driver '{"sparkSubmit": {"entryPoint": "s3://<spark-script-bucket>/<optional-prefix>/detect_schema_from_full_export.py", "entryPointArguments": ["s3://<dynamodb-export-bucket>/<optional-prefix>/<full-export-folder>/", "s3://<iceberg-bucket>/<optional-prefix>/schema.json"]}}'
-```
-The job will take a few minutes to run, depending on the size of your DynamoDB full export. You can track the job progress in the EMR Serverless job console. If it says Success, the job has completed. Otherwise, review the console error or driver logs (stdout/stderr) and correct any errors such as a mistyped parameter.
+In this post, we walked through the prerequisites and steps required to set up a zero-ETL integration from DynamoDB to SageMaker Lakehouse. In [Part 2,](file:///Users/mkagraw/Downloads/part2_blog_link) we show how to set up SageMaker Lakehouse using SageMaker Unified Studio, and demonstrate how you can run analytics using the capabilities of SageMaker Lakehouse.
 
-![Solutions Screen-5](./img/solutions-screen-5.png)
+To learn more about zero-ETL integration, refer to [DynamoDB zero-ETL integration with Amazon SageMaker Lakehouse](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/amazon-sagemaker-lakehouse-for-DynamoDB-zero-etl.html).
 
-Upon success, you’ll have a schema.json file at the location specified in the arguments which contains the schema from your DynamoDB full export. It should look something like this:
-```
-# Sample schema
-# Key is column name, value is a data type 
-{
-    "product_id": "S",
-    "quantity": "N",
-    "remaining_count": "N",
-    "inventory_date": "S",
-    "price": "S",
-    "product_name": "S"
-}
-```
+# Amazon DynamoDB zero-ETL integration with Amazon SageMaker Lakehouse – Part 2
 
-**Step 5: Create an AWS Glue Data Catalog database**
+In [Part 1](file:///Users/mkagraw/Downloads/part1_blog_link) of this series, we walked through the prerequisites and steps to create a [zero-ETL integration](https://aws.amazon.com/what-is/zero-etl/) between [Amazon DynamoDB](https://aws.amazon.com/dynamodb/) and [Amazon SageMaker Lakehouse](https://aws.amazon.com/sagemaker/lakehouse/). In this post, we continue setting up SageMaker Lakehouse using [Amazon SageMaker Unified Studio](https://aws.amazon.com/sagemaker/unified-studio/), and show sample analytics that a financial services team can run to understand their customer’s behavior and spend.
 
-We suggest you use AWS Glue Data Catalog to persist the Iceberg table meta store so you can query the tables from Athena (or any Hive Meta store compatible query engine) using the same Glue Catalog. The scripts from this post assume ```dev``` as the default catalog name and ```db``` as the default database name. Create the ```db``` database in your Glue Data Catalog using following AWS CLI command:
+## Set up SageMaker Unified Studio
 
-```
-aws glue create-database --database-input '{"Name":"db"}'
-```
+SageMaker Unified Studio is an integrated development environment (IDE) for data, analytics, and AI. You can discover your data and put it to work using familiar AWS tools to complete end-to-end development workflows in a single governed environment. Such tools may include data analysis, data processing, model training, generative AI application building, and more. You can create or join projects to collaborate with your teams, share AI and analytics artifacts securely, and discover and use your data stored in [Amazon Simple Storage Service](http://aws.amazon.com/s3) (Amazon S3), [Amazon Redshift](http://aws.amazon.com/redshift), and other data sources through SageMaker Lakehouse. As AI and analytics use cases converge, you can transform how data teams work together with SageMaker Unified Studio.
 
-**Step 6: Use EMR Serverless to build the Iceberg table based on the full export and using the generated schema**
+Follow the steps in [An integrated experience for all your data and AI with Amazon SageMaker Unified Studio](https://aws.amazon.com/blogs/big-data/an-integrated-experience-for-all-your-data-and-ai-with-amazon-sagemaker-unified-studio/) to create a SageMaker Unified Studio domain and project. For this example, we name the project CustomerDB_Project. On the project overview page, copy the project role Amazon Resource Name (ARN) for future use.
 
-Download the [create_iceberg_from_full_export.py](https://github.com/aws-solutions-library-samples/guidance-for-incremental-data-exports-on-aws/blob/main/code/create_iceberg_from_full_export.py) script and store it in your ```<spark-script-bucket>``` to load the full export into an Iceberg table. The pyspark script does these main actions:
+![]
+## Import AWS Glue Data Catalog assets to the SageMaker Unified Studio project
 
-1. **Reads the JSON data into a DataFrame**
-A DataFrame is a data structure that organizes data into a 2-dimensional table of rows and columns. DataFrames are one of the most common data structures used in modern data analytics because they are a flexible and intuitive way of storing and working with data. The first data frame here matches the JSON format in the S3 bucket.
+Follow the instructions and script provided in the [GitHub repo](https://docs.aws.amazon.com/sagemaker-unified-studio/latest/userguide/bring-resources-scripts.html) to bring in existing resources to the SageMaker Unified Studio project CustomerDB_Project.
 
-2. **Applies the schema to make a new DataFrame**
-The script then uses the schema to transform the JSON-based DataFrame to one that matches the provided schema.
+1. Retrieve details about the [AWS Identity and Access Management](https://aws.amazon.com/iam/) (IAM) user or role whose credentials will be used in running the script. In the following commands, the assumed role Admin is used:
 
-3. **Writes the new DataFrame to the target Iceberg table**
-The script then bulk writes the DataFrame to a new Iceberg table.
+aws sts get-caller-identity
 
-Submit the job using the console to the EMR Serverless application as shown in the screenshot below. Provide a name for the job, the job role, the location of your python script ```(<spark-script-bucket>)```, and script arguments.
+1. Add the executor (IAM user or role, in our case the Admin role) as the [AWS Lake Formation](https://aws.amazon.com/lake-formation/%5d) data lake administrator in the AWS Region where you will execute the script:
 
-![Solutions Screen-6](./img/solutions-screen-6.png)
+aws lakeformation put-data-lake-settings \\  
+\--data-lake-settings '{"DataLakeAdmins":\[{"DataLakePrincipalIdentifier":"arn:aws:iam::&lt;ACCOUNT-ID&gt;:role/Admin"}\]}' \\  
+\--region us-east-1
 
-Here is starter text to copy-paste for the script arguments:
-```
-[
- "s3://<dynamodb-export-bucket>/<optional-prefix>/<full-export-folder>/",
- "s3://<iceberg-bucket>/<optional-prefix>/schema.json",
- "<iceberg-table-name>",
- "s3://<iceberg-bucket>/<optional-prefix>/"
-]
-````
-Real example to demonstrate the script arguments:
-```
-[
- "s3://mybucket/exports/AWSDynamoDB/01697091611852-ae49471c/",
- "s3://myiceberg/schema/schema.json",
- "iceberg",
- "s3://myiceberg/ice-chest/"
-]
-```
-Alternatively, you can use the AWS CLI to submit your job to the EMR Serverless application.
-```
-aws emr-serverless start-job-run \
-  --application-id application-id \
-  --execution-role-arn job-role-arn \
-  --job-driver '{"sparkSubmit": {"entryPoint": "s3://<spark-script-bucket>/<optional-prefix>/create_iceberg_from_full_export.py","entryPointArguments": ["s3://<dynamodb-export-bucket>/<optional-prefix>/<full-export-folder>/","s3://<iceberg-bucket>/<optional-prefix>/schema.json","<iceberg-table-name>","s3://<iceberg-bucket>/<optional-prefix>"]}}'
-```
-The script will take a few minutes to run. You can track the progress in the AWS console.
+1. Download the bring_your_own_gdc_assets.py script from [GitHub](https://docs.aws.amazon.com/sagemaker-unified-studio/latest/userguide/bring-resources-scripts.html), and execute the following command:
 
-**Step 7: Use Athena to confirm the new Iceberg table is readable**
+python3 bring_your_own_gdc_assets.py \\  
+—project-role-arn &lt;project-role-ARN&gt; \\  
+—table-name customeraccounts \\  
+—database-name customerdb \\  
+—region us-east-1
 
-Next, you can use Athena to confirm the new Iceberg table was created correctly. In the AWS console, open the Athena service and open the Query editor on the left sidebar.
+At this point, the [AWS Glue](https://aws.amazon.com/glue) database customerdb and table CustomerAccounts should be visible in the project CustomerDB_Project under AwsDataCatalog.
 
-1. Before you run your first query, you must set up a query result location in S3.
+![]
+## Explore your data through SageMaker Lakehouse
 
-2. Go to the Settings tab and point to a prefix of your choosing under the ```<iceberg-bucket>```.
+In this section, we use the SageMaker Lakehouse data explorer to explore the imported table with [Amazon Athena](http://aws.amazon.com/athena). Complete the following steps:
 
-3. For a query, choose ```“select * from <iceberg-table-name> limit 10” ``` where your table name matches that given in Step 6.
+1. On the project page, choose **Data**.
+2. Under **Lakehouse**, expand AwsDataCatalog.
+3. Expand your database customerdb.
+4. Choose the customeraccounts table, then choose **Query with Athena**.
+5. Choose **Run all**.
 
-The following screenshot shows a simple select with the first 10 items from the Iceberg table. You can also try ```“select count(*) from <iceberg-table-name>”``` to see how many items are presently in the Iceberg table.
+The following screenshot shows an example of the query result.
 
-![Solutions Screen-7](./img/solutions-screen-7.png)
+![]
+You can also open a generative SQL assistant powered by [Amazon Q](https://aws.amazon.com/q/) to help your query authoring experience. For example, you can ask “calculate the total balance as a percentage of the credit limit outstanding per state and zipcode” in the Amazon Q assistant, and the query is automatically suggested.
 
-Note that the table is automatically visible from the Athena console because the previous script created the Iceberg table using Glue Data Catalog.
+You can choose **Add to querybook** to copy the suggested query to your querybook, and run it.
 
-**Step 8: Perform an incremental export from your DynamoDB table**
+![]
+Next, regarding the query generated by Amazon Q, let’s try a quick visualization to analyze the data distribution.
 
-For running the guidance, If you using DynamoDB table ``product`` created by the stack then lets make some changes in the items before perforrming incremental export
+1. Choose the chart view icon.
+2. Under **Structure**, choose **Traces**.
+3. For **Type**, choose **Pie**.
+4. For **Values**, choose balance_percentage.
+5. For **Labels**, choose state.
 
-Run below CLI command to update quantiry for items with product_id 18 and delete item with product_id 1
-```
-aws dynamodb update-item \
-    --table-name product \
-    --key '{"product_id": {"S": "18"}}' \
-    --update-expression "SET quantity = :value" \
-    --expression-attribute-values '{":value": {"S": "100"}}'
+The query result will display as a pie chart like the following example. You can customize the graph title, axis title, subplot styles, and more in the UI. The generated images can also be downloaded as PNG or JPEG files. After you’ve finished querying the data, you can choose to view the queries in your query history, and save them to share with other project members.
 
-aws dynamodb delete-item \
-    --table-name product \
-    --key '{"product_id": {"S": "1"}}'
-```
+![]
+For more information about reviewing query history, see [Review query history](https://docs.aws.amazon.com/sagemaker-unified-studio/latest/userguide/query-history.html). For more information about other operations you can do with the query editor, such as using generative AI to create SQL queries, see [SQL analytics](https://docs.aws.amazon.com/sagemaker-unified-studio/latest/userguide/sql-query.html).
 
-To run an incremental export, use the AWS console for DynamoDB and navigate to the **Exports to S3**. Select the same table, and provide the target S3 bucket and prefix. These can be the same as your full export, but don’t have to be. Select **Incremental Export**. The start time should be the time used in Step 1. The end time can be an hour later. With exports the start time is always inclusive and the end time is always exclusive, so by using the exact same timestamp when stitching exports together it ensures no missing or duplicate data. Select **DynamoDB JSON** as your export type, choose either **New and old images or New images only** (the Spark script only requires the new images), pick your encryption key, and start the export.
+Let’s ask Amazon Q to generate a query by providing the prompt “calculate the count of account status Past Due by state, zipcode.” The following screenshot shows the results.
 
-![Solutions Screen-8](./img/solutions-screen-8.jpeg)
+![]
+Next, we enter the query “pivot table where rows represent states, and columns represent account statuses with the corresponding counts.” The following screenshot shows the results.
 
-**Step 9: Update the Iceberg table with the incremental export**
+![]
+## Schema evolution
 
-While waiting for the incremental export job to complete, you can copy the script [update_iceberg_from_incremental_export.py](https://github.com/aws-solutions-library-samples/guidance-for-incremental-data-exports-on-aws/blob/main/code/update_iceberg_from_incremental_export.py) and save it in ```<spark-script-bucket>```.
+The zero-ETL integration uses [Apache Iceberg](https://iceberg.apache.org/) to transform related data formats and structure in your DynamoDB data into appropriate formats in Amazon S3. Iceberg provides a robust solution for managing table schemas in data lakes, enabling schema evolution (adding or removing columns) without disrupting data, or requiring costly rewrites. It uses metadata files to track schema changes, allowing for querying historical data even after schema modifications. For more information about zero-ETL integration general limitations, refer to [Limitations](https://docs.aws.amazon.com/glue/latest/dg/zero-etl-limitations.html).
 
-The script works similarly to the script for full exports, except in the final step it will [MERGE](https://iceberg.apache.org/docs/latest/spark-writes/#merge-into) the incremental export’s DataFrame into the existing Iceberg table. To merge this incremental data into the target Iceberg table, the script dynamically creates join conditions based on the item keys. These conditions will determine how the incremental data matches with existing records in the target table. The MERGE INTO command allows for the combination of the target and source tables based on the join conditions.
+To see how the zero-ETL integration handles schema evolution, let’s make some changes in the DynamoDB table CustomerAccounts. We will do the following:
 
-The merge logic is as follows:
+1. Insert new items with matching attributes of an existing item with a few additional new attributes.
+2. Update an item by adding new attributes.
+3. Delete an item.
 
-1. If a record in the target table matches a record in the incremental data, and the incremental data value is null for the key, the record in the target table is deleted.
+Open an [AWS CloudShell](https://aws.amazon.com/cloudshell/) terminal window and run the following commands:
 
-2. If a record in the target table matches a record in the incremental data, the record in the target table is updated.
+aws dynamodb **put-item** --table-name CustomerAccounts \\
 
-3. If there’s no match for a record from the incremental data in the target table, the record is inserted into the target table.
+\--item '{
 
-4. The constructed merge query is then executed using SparkSQL, resulting in the target table being updated with the latest incremental changes.
+"CustomerID": {"S": "CUST0026"},
 
-To submit the incremental update job, go to the EMR console and choose **Submit job** to your EMR Serverless application. This step is similar to step 5. Just note the different script name and the need to point at the incremental export folder this time.
-This section should include:
+"AccountNumber": {"S": "ACC839001"},
 
-![Solutions Screen-9](./img/solutions-screen-9.png)
+"State": {"S": "WA"},
 
-Here is starter text to copy-paste for the arguments:
-```
-[
- "s3://<dynamodb-export-bucket>/<optional-prefix>/<incremental-export-folder>/",
- "s3://<iceberg-bucket>/<optional-prefix>/schema.json",
- "<iceberg-table-name>",
- "s3://<iceberg-bucket>/<optional-prefix>/"
-]
-```
-Real example to demonstrate the script arguments (note the new incremental path):
-```
-[
- "s3://mybucket/exports/AWSDynamoDB/01697092259000-286db8d3/",
- "s3://myiceberg/schema/schema.json",
- "iceberg",
- "s3://myiceberg/ice-chest/"
-]
-```
-Alternatively, you can use the AWS CLI to submit your job to the EMR Serverless application.
-```
-aws emr-serverless start-job-run \
-  --application-id application-id \
-  --execution-role-arn job-role-arn \
-  --job-driver '{"sparkSubmit": {"entryPoint": "s3://<spark-script-bucket>/<optional-prefix>/update_iceberg_from_incremental_export.py","entryPointArguments": ["s3://<dynamodb-export-bucket>/<optional-prefix>/<incremental-export-folder>","s3://<iceberg-bucket>/<optional-prefix>/schema.json","<iceberg-table-name>","s3://<iceberg-bucket>/<optional-prefix>"]}}'
-```
-When the script completes, the Iceberg tables will have been updated with the incremental export. Table changes are atomic, and readers never see partial or uncommitted changes.
+"ZipCode": {"S": "98101"},
 
-To run this work on a schedule, you can repeat Step 8 and Step 9. For Step 8, adjusting the export period to meet your requirements of how often you want to update your data lake. For Step 9, make sure to substitute the new incremental export folder with the new export ID. 
+"CreditLimit": {"N": "10140"},
 
-Note: Consider [compacting your Iceberg tables periodically](https://iceberg.apache.org/docs/1.5.1/maintenance/) as well to reduce the accumulated metadata overhead and improve query speed.
+"CurrentBalance": {"N": "8135.47"},
 
-**Step 10: Use Athena to confirm the update**
+"LastPaymentDate": {"S": "2024-12-17"},
 
-You can confirm the update by running the same Athena queries as before, now with different results. For example, if you’ve added or removed items, the count should reflect this.
+"AccountStatus": {"S": "Active"},
 
-The following screenshot shows a simple select with updated values (quantity for product_id 18 was updated to 100) due to incremental updates on your full table. If you were using your own data, the schema would be different.
+"InterestRate": {"N": "3.15"},
 
-![Solutions Screen-10](./img/solutions-screen-10.png)
+"email": { "S": "<sarah.wilson@example.com>" },
 
-Some Iceberg features to be aware of:
+"custname": { "S": "Sarah Wilson" },
 
-1. [Schema evolution](https://docs.aws.amazon.com/athena/latest/ug/querying-iceberg-evolving-table-schema.html) – the ability to change the table schema if the DynamoDB table schema were to change. Just remember to update the JSON schema file to pick up changes for your incremental exports and alter iceberg table.
+"username": { "S": "swilson789" },
 
-2. [Time travel](https://docs.aws.amazon.com/athena/latest/ug/querying-iceberg-table-data.html) – the ability to query at a past time regardless of the current state of the data
+"phone": { "S": "555-012-3456" },
 
-## Next Steps
+"address": { "S": "789 Oak St, Chicago, IL 60601" },
 
-In this post, you learned how to build on Amazon DynamoDB’s incremental export to S3 feature to keep an Apache Iceberg table continuously updated using Amazon EMR Serverless. The Iceberg format supports high performance access from multiple downstream tools. If your use case aligns with the example provided in the guidance, We encourage you to give it a try with your Amazon DynamoDB table.
+"custcreatedt": { "S": "2023-04-01T09:00:00Z" },
 
-## Cleanup
+"custupddt": { "S": "2023-04-01T09:00:00Z" }
 
-1. To delete the stack deployed using the CloudFormation template follow the steps mentioned in this [link](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/cfn-console-delete-stack.html).
-2. If using AWS Cli run the following command: 
-   ```
-   aws cloudformation delete-stack --stack-name createddbtable
-   ```
-3. If you created any demo [DynamoDB](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/WorkingWithTables.Basics.html#WorkingWithTables.Basics.DeleteTable) tables, you can [delete those tables](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/WorkingWithTables.Basics.html#WorkingWithTables.Basics.DeleteTable/) to clean up.
-4. It’s good form to stop and delete your [EMR Serverless application](https://docs.aws.amazon.com/emr/latest/EMR-Serverless-UserGuide/studio.html#studio-manage-app) as part of the clean-up, but you would only be charged if you are running jobs under the application.
-5. Lastly, you may wish to [delete any S3 objects](https://docs.aws.amazon.com/AmazonS3/latest/userguide/DeletingObjects.html) to avoid unwanted charges to your AWS account.
+}'  
+<br/>aws dynamodb **update-item** --table-name CustomerAccounts \\
 
-## Notices
+\--key '{ "CustomerID": { "S": "CUST0001" }, "AccountNumber": { "S": "ACC326093" } }' \\
 
-*Customers are responsible for making their own independent assessment of the information in this Guidance. This Guidance: (a) is for informational purposes only, (b) represents AWS current product offerings and practices, which are subject to change without notice, and (c) does not create any commitments or assurances from AWS and its affiliates, suppliers or licensors. AWS products or services are provided “as is” without warranties, representations, or conditions of any kind, whether express or implied. AWS responsibilities and liabilities to its customers are controlled by AWS agreements, and this Guidance is not part of, nor does it modify, any agreement between AWS and its customers.*
+\--update-expression "SET email = :val1, custname = :val2, username = :val3, phone = :val4, address = :val5, custcreatedt = :val6, custupddt = :val7" \\
+
+\--expression-attribute-values '{
+
+":val1": { "S": "<michael.taylor@example.com>" },
+
+":val2": { "S": "Michael Taylor" },
+
+":val3": { "S": "mtaylor123" },
+
+":val4": { "S": "555-246-8024" },
+
+":val5": { "S": "246 Maple Ave, Los Angeles, CA 90001" },
+
+":val6": { "S": "2022-11-01T08:00:00Z" },
+
+":val7": { "S": "2022-11-01T08:00:00" }
+
+}'
+
+aws dynamodb **delete-item** \\
+
+\--table-name CustomerAccounts \\
+
+\--key '{"CustomerID": {"S": "CUST0002"}, "AccountNumber": {"S": "ACC578303"}}'
+
+The zero-ETL integration will take up to 15–30 minutes to propagate the change in the AWS Glue Data Catalog database.
+
+Run the following query to validate the changed data:
+
+select \* from awsdatacatalog.customerdb.customeraccounts where customerid in ('CUST0026', 'CUST0001', 'CUST00002');
+
+## Time travel and version travel queries for historical analysis
+
+Each Iceberg table maintains a versioned manifest of the Amazon S3 objects that it contains. Previous versions of the manifest can be used for time travel and version travel queries. _Time travel queries_ in Athena query Amazon S3 for historical data from a consistent snapshot as of a specified date and time. _Version travel queries_ in Athena query Amazon S3 for historical data as of a specified snapshot ID. For more information about time travel and version travel queries, see [Perform time travel and version travel queries](https://docs.aws.amazon.com/athena/latest/ug/querying-iceberg-time-travel-and-version-travel-queries.html).
+
+Retrieve the snapshot ID using the following query:
+
+select \* from "awsdatacatalog"."customerdb"."customeraccounts**$snapshots**";
+
+Use the following version travel query for historical analysis:
+
+select \* from awsdatacatalog.customerdb.customeraccounts **FOR VERSION AS OF** &lt;SNAPSHOT_ID&gt; where customerid in ('CUST0026', 'CUST0001', 'CUST00002');
+
+Use the following time travel query for historical analysis:
+
+SELECT \* FROM "awsdatacatalog"."customerdb"."customeraccounts" **FOR TIMESTAMP AS OF** (current_timestamp - interval '1' day)
+
+## Monitor the zero-ETL integration
+
+There are several options to obtain metrics on the performance and status of the DynamoDB zero-ETL integration with SageMaker Lakehouse.
+
+On the AWS Glue console, choose **Zero-ETL integrations** in the navigation pane. You can choose your zero-ETL integration, and drill down to view Amazon CloudWatch logs and Amazon CloudWatch metrics to the integration.
+
+![]
+## Viewing Amazon CloudWatch logs for an integration
+
+Zero-ETL integrations generate Amazon CloudWatch logs for visibility into your data movement. Log events are emitted to a default log group created in customer account. Log events may include successful ingestion events, failures experienced due to problematic data records at source, and data write errors due to schema changes or insufficient permissions.
+
+![]
+## Viewing Amazon CloudWatch metrics for an integration
+
+Zero-ETL integration provides real-time operational insights through CloudWatch metrics, enabling proactive monitoring of data integration processes without direct querying of target Iceberg tables. When enabled by adding appropriate permissions on source and target processing roles, CloudWatch metrics are automatically emitted to the AWS/Glue/ZeroETL namespace after completion of each table ingestion operation. You can setup alarms on your CloudWatch metrics to get notified when a particular Ingestion Job fails.
+
+![]
+To learn about zero ETL monitoring, refer to [zero ETL monitoring](https://docs.aws.amazon.com/glue/latest/dg/zero-etl-monitoring.html)
+
+## Pricing
+
+AWS doesn’t charge an additional fee for the zero-ETL integration. You pay for existing DynamoDB and AWS Glue resources used to create and process the change data created as part of a zero-ETL integration. These include DynamoDB point-in-time recovery (PITR), DynamoDB exports for the initial and ongoing data changes to your DynamoDB data, additional AWS Glue storage for storing replicated data, and SageMaker compute on the target. For pricing on DynamoDB PITR and DynamoDB exports, see [Amazon DynamoDB pricing](https://aws.amazon.com/dynamodb/pricing/).
+
+## Clean up
+
+Complete the following steps to clean up your resources. When you delete a zero-ETL integration, your data isn’t deleted from the DynamoDB table or AWS Glue, but data changes happening after that point of time aren’t sent to SageMaker Lakehouse.
+
+1. Delete the zero-ETL integration:
+    1. On the AWS Glue console, choose **Zero-ETL integrations** in the navigation pane.
+    2. Select the zero-ETL integration that you want to delete, and on the **Actions** menu, choose **Delete**.
+    3. To confirm the deletion, enter confirm, and choose **Delete**.
+2. Delete the SageMaker Unified Studio project, domain and VPC:
+    1. On the SageMaker Unified Studio console, select your project, and on the **Action** menu, choose **Delete project**.
+    2. On the SageMaker console, select the domain you want to delete, and choose **Delete**.
+    3. On CloudFormation Stacks, select SageMakerUnifiedStudio-VPC, and choose **Delete**.
+3. Delete the AWS Glue database:
+    1. On the AWS Glue console, choose **Data Catalog** in the navigation pane.
+    2. Select your database, and choose **Delete** to delete the database and its tables.
+4. On the Amazon S3 console, delete the S3 folder and bucket you created.
+5. On the IAM console, delete the IAM policies and role you created.
+
+## Conclusion
+
+In this post, we explained how you can set up a zero-ETL integration from DynamoDB to SageMaker Lakehouse to derive holistic insights across many applications, break data silos in your organization, and gain significant cost savings and operational efficiencies.
+
+To learn more about zero-ETL integration, refer to [DynamoDB zero-ETL integration with Amazon SageMaker Lakehouse](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/amazon-sagemaker-lakehouse-for-DynamoDB-zero-etl.html).
