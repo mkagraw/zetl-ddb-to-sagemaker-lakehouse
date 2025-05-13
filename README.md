@@ -27,20 +27,22 @@ The solution outlines a step-by-step approach to:
 
 4. Enable point-in-time recovery (PITR) for the DynamoDB table **CustomerAccounts**
 
-    ```aws dynamodb update-continuous-backups --table-name CustomerAccounts --point-in-time-recovery-specification PointInTimeRecoveryEnabled=true --region us-east-1```
+    ```
+    aws dynamodb update-continuous-backups --table-name CustomerAccounts --point-in-time-recovery-specification PointInTimeRecoveryEnabled=true --region us-east-1
+    ```
 
 5. Load sample data into the DynamoDB table CustomerAccounts:
 
-```aws dynamodb batch-write-item --request-items file://sample-data-load-1.json --region us-east-1```
+    ```aws dynamodb batch-write-item --request-items file://sample-data-load-1.json --region us-east-1```
 
 6. To access data from your source DynamoDB table, AWS Glue requires access to describe the table, and export data from it. DynamoDB recently introduced a feature that allows configuring a [resource-based access control policy](https://docs.aws.amazon.com/glue/latest/dg/zero-etl-sources.html#zero-etl-config-source-dynamodb). Add and verify the following resource policy for the DynamoDB table CustomerAccounts, enabling the zero-ETL integration to access DynamoDB table data.
 
 **NOTE:** Before running the following commands, replace ```<ACCOUNT-ID>``` with your own AWS account ID
-
+      
     aws dynamodb put-resource-policy --resource-arn arn:aws:dynamodb:us-east-1:"<ACCOUNT-ID>":table/CustomerAccounts --policy file://CustomerAccounts_ResourcePolicy.json --region us-east-1
-
+    
     aws dynamodb get-resource-policy --resource-arn arn:aws:dynamodb:us-east-1:"<ACCOUNT-ID>":table/CustomerAccounts --region us-east-1
-
+  
 7. Create an S3 bucket, folder, and an [AWS Glue database](https://docs.aws.amazon.com/glue/latest/dg/zero-etl-prerequisites.html#zero-etl-setup-target-resources-glue-database) by providing the S3 URI location:
 
     ```aws s3 mb s3://glue-zetl-target-&lt;ACCOUNT-ID&gt;-us-east-1 --region us-east-1```
